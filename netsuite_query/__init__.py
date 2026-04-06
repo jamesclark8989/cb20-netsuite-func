@@ -9,11 +9,13 @@ import secrets
 import requests
 import azure.functions as func
 
-ACCOUNT_ID = "569730"
-CONSUMER_KEY = "4831f6751727e60f9863781166c80986931ceba35be019d206917903f756ab4c"
-CONSUMER_SECRET = "1bc09bbf97cce43fcc5d1e84a12d968670d7c2fc5c6cc500a1d86492b4dbc747"
-TOKEN_ID = "6b37c68a40c846320c66a95eb3e10d37148fbd6b42b03f8c0633540727342293"
-TOKEN_SECRET = "4c691454ddc40732e23b5e3f7aa9bd3f22a64b6c33c2b984e362ff52152e266d"
+import os
+
+ACCOUNT_ID = os.environ.get("NETSUITE_ACCOUNT_ID", "569730")
+CONSUMER_KEY = os.environ.get("NETSUITE_CONSUMER_KEY")
+CONSUMER_SECRET = os.environ.get("NETSUITE_CONSUMER_SECRET")
+TOKEN_ID = os.environ.get("NETSUITE_TOKEN_ID")
+TOKEN_SECRET = os.environ.get("NETSUITE_TOKEN_SECRET")
 
 def generate_tba_header(method, url, params=None):
     oauth_nonce = secrets.token_hex(16)

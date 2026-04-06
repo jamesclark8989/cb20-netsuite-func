@@ -1,4 +1,3 @@
-import azure.functions as func
 import logging
 import json
 import time
@@ -8,8 +7,7 @@ import base64
 import urllib.parse
 import secrets
 import requests
-
-app = func.FunctionApp(http_auth_level=func.AuthLevel.FUNCTION)
+import azure.functions as func
 
 ACCOUNT_ID = "569730"
 CONSUMER_KEY = "4831f6751727e60f9863781166c80986931ceba35be019d206917903f756ab4c"
@@ -52,8 +50,7 @@ def generate_tba_header(method, url, params=None):
     )
     return auth_header
 
-@app.route(route="netsuite_query")
-def netsuite_query(req: func.HttpRequest) -> func.HttpResponse:
+def main(req: func.HttpRequest) -> func.HttpResponse:
     logging.info("NetSuite query function triggered.")
 
     try:

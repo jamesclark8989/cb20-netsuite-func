@@ -248,7 +248,7 @@ def load_items(conn):
             ) VALUES (?,?,?,?,?,?,?,?,GETDATE())
         """,
         row.get('id'),
-        row.get('itemid'),
+        safe_str(row.get('itemid'), 500),
         safe_str(row.get('displayname'), 255),
         safe_str(row.get('description')),
         row.get('itemtype'),
@@ -430,7 +430,7 @@ def load_sales_order_fulfillments(conn):
 
     headers = extract_all("""
         SELECT id, tranId, transactionNumber, createdFrom,
-               entity, tranDate, status, shipDate, shipAddress,
+               entity, tranDate, status, shipAddress,
                memo, createdDate, lastModifiedDate
         FROM itemFulfillment
     """)
@@ -450,7 +450,8 @@ def load_sales_order_fulfillments(conn):
         """,
         row.get('id'), row.get('tranid'), row.get('transactionnumber'),
         row.get('createdfrom'),
-        row.get('entity'), row.get('trandate'), row.get('shipdate'),
+        row.get('entity'), row.get('trandate'),
+        None,               # ShipDate — no corresponding field in itemFulfillment
         row.get('status'),
         safe_str(row.get('shipaddress')),
         safe_str(row.get('memo')),
@@ -475,13 +476,14 @@ def load_sales_order_fulfillments(conn):
         cursor.execute("""
             INSERT INTO SalesOrderFulfillment_Detail (
                 FulfillmentID, Line, ItemID, Description,
-                Quantity, Location
-            ) VALUES (?,?,?,?,?,?)
+                Quantity, QuantityRemaining, Location
+            ) VALUES (?,?,?,?,?,?,?)
         """,
         row.get('itemfulfillment'), safe_int(row.get('line')),
         row.get('item'),
         safe_str(row.get('description')),
         safe_decimal(row.get('quantity')),
+        None,               # QuantityRemaining — not available in itemFulfillmentItem
         row.get('location'))
 
     conn.commit()
@@ -719,17 +721,17 @@ if __name__ == "__main__":
     conn = get_sql_connection()
 
     # Dimensions first
-    load_customers(conn)
-    load_vendors(conn)
-    load_items(conn)
+    #load_customers(conn)
+    #load_vendors(conn)
+    #load_items(conn)
 
     # Sales-side facts
-    load_sales_orders(conn)
-    load_sales_order_fulfillments(conn)
-    load_sales_order_invoices(conn)
+    #load_sales_orders(conn)
+    #load_sales_order_fulfillments(conn)
+    #load_sales_order_invoices(conn)
 
     # Purchase-side facts
-    load_purchase_orders(conn)
+    #load_purchase_orders(conn)
     load_purchase_order_receipts(conn)
     load_purchase_order_vendor_bills(conn)
 

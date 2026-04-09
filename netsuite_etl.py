@@ -605,10 +605,10 @@ def load_purchase_order_receipts(conn):
 
     print("Loading PurchaseOrderReceipt_Detail...")
     details = extract_all("""
-    SELECT *
-    FROM ItemReceiptItem
+        SELECT itemReceipt, line, item, description,
+               quantity, rate, amount, location
+        FROM ItemReceiptItem
     """)
-    print(details[0] if details else "no results")
 
     skipped = 0
     for row in details:
@@ -641,10 +641,10 @@ def load_purchase_order_vendor_bills(conn):
     cursor.execute("DELETE FROM PurchaseOrderVendorBill_Detail")
 
     headers = extract_all("""
-        SELECT id, tranId, transactionNumber, externalId, createdFrom,
+        SELECT id, tranId, transactionNumber, createdFrom,
                entity, tranDate, dueDate, status,
                total, taxTotal, amountPaid, amountRemaining,
-               terms, memo, currency, subsidiary, voided,
+               terms, memo, currency, voided,
                createdDate, lastModifiedDate
         FROM vendorBill
     """)
@@ -657,23 +657,23 @@ def load_purchase_order_vendor_bills(conn):
             continue
         cursor.execute("""
             INSERT INTO PurchaseOrderVendorBill_Header (
-                NetSuiteID, TranID, TransactionNumber, ExternalID, PurchaseOrderID,
+                NetSuiteID, TranID, TransactionNumber, PurchaseOrderID,
                 VendorID, TranDate, DueDate, Status,
-                Total, TaxTotal, AmountPaid, AmountRemaining,
-                Terms, Memo, Currency, Subsidiary, Voided,
+                Total, TaxTotal, AmountPaid, AmountDue,
+                Terms, Memo, Currency, Voided,
                 CreatedDate, LastModifiedDate
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
         """,
         row.get('id'), row.get('tranid'), row.get('transactionnumber'),
-        row.get('externalid'), row.get('createdfrom'),
+        row.get('createdfrom'),
         row.get('entity'), row.get('trandate'), row.get('duedate'),
         row.get('status'),
         safe_decimal(row.get('total')), safe_decimal(row.get('taxtotal')),
         safe_decimal(row.get('amountpaid')),
-        safe_decimal(row.get('amountremaining')),
+        safe_decimal(row.get('amountremaining')),  # maps to AmountDue in DDL
         row.get('terms'),
         safe_str(row.get('memo')),
-        row.get('currency'), row.get('subsidiary'),
+        row.get('currency'),
         safe_bool(row.get('voided')),
         row.get('createddate'), row.get('lastmodifieddate'))
 
@@ -721,17 +721,17 @@ if __name__ == "__main__":
     conn = get_sql_connection()
 
     # Dimensions first
-    #load_customers(conn)
-    #load_vendors(conn)
-    #load_items(conn)
+    load_customers(conn)
+    load_vendors(conn)
+    load_items(conn)
 
     # Sales-side facts
-    #load_sales_orders(conn)
-    #load_sales_order_fulfillments(conn)
-    #load_sales_order_invoices(conn)
+    load_sales_orders(conn)
+    load_sales_order_fulfillments(conn)
+    load_sales_order_invoices(conn)
 
     # Purchase-side facts
-    #load_purchase_orders(conn)
+    load_purchase_orders(conn)
     load_purchase_order_receipts(conn)
     load_purchase_order_vendor_bills(conn)
 

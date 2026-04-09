@@ -605,10 +605,10 @@ def load_purchase_order_receipts(conn):
 
     print("Loading PurchaseOrderReceipt_Detail...")
     details = extract_all("""
-        SELECT itemReceipt, line, item, description,
-               quantity, rate, amount, location
-        FROM itemReceiptItem
+    SELECT *
+    FROM ItemReceiptItem
     """)
+    print(details[0] if details else "no results")
 
     skipped = 0
     for row in details:
@@ -685,7 +685,7 @@ def load_purchase_order_vendor_bills(conn):
         SELECT vendorBill, line, item, itemType, description,
                quantity, amount, rate, grossAmt,
                class, department, location
-        FROM vendorBillItem
+        FROM VendorBillItem
     """)
 
     skipped = 0

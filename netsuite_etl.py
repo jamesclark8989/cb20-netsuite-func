@@ -164,7 +164,6 @@ def extract_all(query, page_size=1000):
         result = run_suiteql(query, limit=page_size, offset=offset)
         items = result.get("items", [])
 
-        # Normalize all keys to lowercase to avoid case-sensitivity issues
         items = [{k.lower(): v for k, v in row.items()} for row in items]
         all_items.extend(items)
 
@@ -176,23 +175,6 @@ def extract_all(query, page_size=1000):
         offset += page_size
 
     return all_items
-
-
-def try_extract_all(label, queries, page_size=1000):
-    last_error = None
-
-    for i, query in enumerate(queries, start=1):
-        try:
-            print(f"  Trying {label} query option {i}...")
-            return extract_all(query, page_size=page_size)
-        except requests.exceptions.HTTPError as exc:
-            print(f"  {label} query option {i} failed.")
-            last_error = exc
-
-    if last_error:
-        raise last_error
-
-    raise RuntimeError(f"No queries supplied for {label}")
 
 
 # ---------------------------------------------------------------------------
@@ -485,7 +467,7 @@ def load_sales_order_fulfillments(conn):
             row.get("tranid"),
             row.get("transactionnumber"),
             row.get("createdfrom"),
-            "transaction",
+            "transaction" if row.get("createdfrom") else None,
             row.get("createdfrom"),
             row.get("entity"),
             row.get("trandate"),
@@ -574,7 +556,7 @@ def load_sales_order_invoices(conn):
             row.get("tranid"),
             row.get("transactionnumber"),
             row.get("createdfrom"),
-            "transaction",
+            "transaction" if row.get("createdfrom") else None,
             row.get("createdfrom"),
             row.get("entity"),
             row.get("trandate"),
@@ -745,7 +727,7 @@ def load_purchase_order_receipts(conn):
 
     headers = extract_all("""
         SELECT id, tranId, transactionNumber, createdFrom,
-               entity, tranDate, status, memo,
+               entity, tranDate, memo,
                createdDate, lastModifiedDate
         FROM itemReceipt
     """)
@@ -769,11 +751,11 @@ def load_purchase_order_receipts(conn):
             row.get("tranid"),
             row.get("transactionnumber"),
             row.get("createdfrom"),
-            "transaction",
+            "transaction" if row.get("createdfrom") else None,
             row.get("createdfrom"),
             row.get("entity"),
             row.get("trandate"),
-            row.get("status"),
+            None,
             safe_str(row.get("memo")),
             row.get("createddate"),
             row.get("lastmodifieddate"),
@@ -783,33 +765,11 @@ def load_purchase_order_receipts(conn):
     print(f"  Loaded {len(headers) - skipped} receipt headers ({skipped} skipped)")
 
     print("Loading PurchaseOrderReceipt_Detail...")
-
-    # NetSuite line-level availability can vary a bit. Try the richest query first,
-    # then fall back to leaner variants if one or more fields are not exposed.
-    receipt_queries = [
-        """
-        SELECT itemReceipt, line, item, description,
-               quantity, rate, amount, location
-        FROM itemReceiptItem
-        """,
-        """
+    details = extract_all("""
         SELECT itemReceipt, line, item, description,
                quantity, amount, location
         FROM itemReceiptItem
-        """,
-        """
-        SELECT itemReceipt, line, item, description,
-               quantity, location
-        FROM itemReceiptItem
-        """,
-        """
-        SELECT itemreceipt, line, item, description,
-               quantity, rate, amount, location
-        FROM ItemReceiptItem
-        """,
-    ]
-
-    details = try_extract_all("PurchaseOrderReceipt_Detail", receipt_queries)
+    """)
 
     skipped = 0
     for row in details:
@@ -832,7 +792,7 @@ def load_purchase_order_receipts(conn):
             safe_str(row.get("description")),
             safe_decimal(row.get("quantity")),
             None,
-            safe_decimal(row.get("rate")),
+            None,
             safe_decimal(row.get("amount")),
             row.get("location"),
         )
@@ -852,9 +812,9 @@ def load_purchase_order_vendor_bills(conn):
     cursor.execute("DELETE FROM PurchaseOrderVendorBill_Detail")
 
     headers = extract_all("""
-        SELECT id, tranId, transactionNumber, createdFrom,
+        SELECT id, tranId, transactionNumber,
                entity, tranDate, dueDate, status,
-               total, taxTotal, amountPaid, amountRemaining,
+               total, taxTotal,
                terms, memo, currency, voided,
                createdDate, lastModifiedDate
         FROM vendorBill
@@ -880,17 +840,17 @@ def load_purchase_order_vendor_bills(conn):
             row.get("id"),
             row.get("tranid"),
             row.get("transactionnumber"),
-            row.get("createdfrom"),
-            "transaction",
-            row.get("createdfrom"),
+            None,
+            None,
+            None,
             row.get("entity"),
             row.get("trandate"),
             row.get("duedate"),
             row.get("status"),
             safe_decimal(row.get("total")),
             safe_decimal(row.get("taxtotal")),
-            safe_decimal(row.get("amountremaining")),
-            safe_decimal(row.get("amountpaid")),
+            None,
+            None,
             row.get("terms"),
             safe_str(row.get("memo")),
             row.get("currency"),
@@ -903,29 +863,12 @@ def load_purchase_order_vendor_bills(conn):
     print(f"  Loaded {len(headers) - skipped} vendor bill headers ({skipped} skipped)")
 
     print("Loading PurchaseOrderVendorBill_Detail...")
-
-    vendor_bill_queries = [
-        """
+    details = extract_all("""
         SELECT vendorBill, line, item, description,
                quantity, amount, rate, taxRate1, tax1Amt,
                class, department
         FROM vendorBillItem
-        """,
-        """
-        SELECT vendorBill, line, item, description,
-               quantity, amount, rate,
-               class, department
-        FROM vendorBillItem
-        """,
-        """
-        SELECT vendorbill, line, item, description,
-               quantity, amount, rate,
-               class, department
-        FROM VendorBillItem
-        """,
-    ]
-
-    details = try_extract_all("PurchaseOrderVendorBill_Detail", vendor_bill_queries)
+    """)
 
     skipped = 0
     for row in details:
@@ -969,17 +912,14 @@ if __name__ == "__main__":
     conn = get_sql_connection()
 
     try:
-        # Dimensions first
         load_customers(conn)
         load_vendors(conn)
         load_items(conn)
 
-        # Sales-side facts
         load_sales_orders(conn)
         load_sales_order_fulfillments(conn)
         load_sales_order_invoices(conn)
 
-        # Purchase-side facts
         load_purchase_orders(conn)
         load_purchase_order_receipts(conn)
         load_purchase_order_vendor_bills(conn)
@@ -988,3 +928,7 @@ if __name__ == "__main__":
 
     finally:
         conn.close()
+
+
+# NetSuite -> SQL Server full-refresh ETL
+# Verified against this NetSuite tenant as of 2026-04-10
